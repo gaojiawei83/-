@@ -1,7 +1,9 @@
+
 import React from 'react';
 import { MuscleId, MuscleData, ViewSide, RecoverySettings } from '../types';
 import { getMuscleStatus, getStatusColor } from '../utils';
 import BodyPart from './BodyPart';
+import { Clock } from 'lucide-react';
 
 interface BodyMapProps {
   view: ViewSide;
@@ -34,39 +36,62 @@ const LABEL_POSITIONS: Record<ViewSide, Partial<Record<MuscleId, { x: number, y:
   }
 };
 
-const MuscleLabel: React.FC<{ x: number; y: number; level: number; statusColor: string; align: 'left' | 'right' | 'center' }> = ({ x, y, level, statusColor, align }) => {
-  const isZero = level <= 1;
-  const bg = isZero ? '#1e293b' : statusColor; 
-  const text = isZero ? '#64748b' : '#000000';
-  
-  // Convert visual level to a simpler number or bar
-  const displayVal = Math.floor(level);
+interface MuscleLabelProps {
+    x: number;
+    y: number;
+    level: number;
+    statusColor: string;
+    align: 'left' | 'right' | 'center';
+    remainingTimeStr: string | null;
+}
 
-  if (isZero) return null; // Don't show label if no growth
+const MuscleLabel: React.FC<MuscleLabelProps> = ({ x, y, level, statusColor, align, remainingTimeStr }) => {
+  const isZero = level <= 1;
+  const isRecovering = !!remainingTimeStr;
+
+  // If recovering, we show the countdown with a specific style
+  // If not recovering but level > 1, show level
+  // If level 1 (never trained) and not recovering, hide
+  if (isZero && !isRecovering) return null; 
+
+  let bg = statusColor;
+  let text = '#000000';
+  let width = 24;
+  let labelContent: React.ReactNode = Math.floor(level);
+
+  if (isRecovering) {
+      bg = 'rgba(15, 23, 42, 0.9)'; // Dark Slate for readability of timer
+      text = statusColor; // Text color matches status (yellow/red)
+      width = 44; // Wider for time
+      labelContent = (
+          <div className="flex items-center gap-0.5 justify-center">
+             <Clock size={8} />
+             <span>{remainingTimeStr}</span>
+          </div>
+      );
+  } else if (isZero) {
+      bg = '#1e293b';
+      text = '#64748b';
+  }
+
+  // Adjust X based on alignment to prevent overlapping body parts too much
+  let finalX = x;
+  if (align === 'left') finalX += 5;
+  if (align === 'right') finalX -= 5;
 
   return (
-    <g transform={`translate(${x}, ${y})`} className="pointer-events-none">
-       <rect 
-          x="-12" 
-          y="-8" 
-          width="24" 
-          height="16" 
-          rx="4" 
-          fill={bg} 
-          className="drop-shadow-sm transition-colors duration-500"
-          opacity={0.9}
-        />
-       <text 
-        x="0" 
-        y="4" 
-        textAnchor="middle" 
-        fontSize="10" 
-        fontWeight="bold" 
-        fill={text}
-        className="font-sans"
-      >
-         {displayVal}
-       </text>
+    <g transform={`translate(${finalX}, ${y})`} className="pointer-events-none">
+       {/* React HTML in SVG via foreignObject is tricky with scaling, using pure SVG rect/text is safer for labels but lacks flexbox.
+           Since we need a clock icon + text, foreignObject is better, but requires known dimensions.
+       */}
+       <foreignObject x={-width / 2} y="-10" width={width} height="20">
+           <div 
+             className="w-full h-full rounded flex items-center justify-center text-[10px] font-bold shadow-sm transition-all duration-500 border border-white/10"
+             style={{ backgroundColor: bg, color: text, border: isRecovering ? `1px solid ${statusColor}` : 'none' }}
+           >
+               {labelContent}
+           </div>
+       </foreignObject>
     </g>
   );
 };
@@ -95,23 +120,56 @@ const BodyMap: React.FC<BodyMapProps> = ({ view, muscles, onMuscleClick, current
     };
   };
 
+  const calculateRemainingTime = (muscle: MuscleData): string | null => {
+      if (!muscle.lastWorkoutTimestamp) return null;
+      
+      const status = getMuscleStatus(muscle.lastWorkoutTimestamp, currentTime, settings);
+      
+      // Only show countdown for Trained (Yellow) or Sore (Red)
+      if (status !== 'trained' && status !== 'sore') return null;
+
+      const recoveryDurationMs = (settings.yellowDuration + settings.redDuration) * 60 * 60 * 1000;
+      const readyTimestamp = muscle.lastWorkoutTimestamp + recoveryDurationMs;
+      const diff = readyTimestamp - currentTime;
+
+      if (diff <= 0) return null;
+
+      const hours = Math.floor(diff / (1000 * 60 * 60));
+      const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+
+      if (hours >= 24) {
+          const days = Math.floor(hours / 24);
+          return `${days}天`;
+      }
+      
+      // Compact format for the label
+      if (hours > 0) {
+          return `${hours}h`; 
+      }
+      return `${minutes}m`;
+  };
+
   const renderLabels = () => {
     const positions = LABEL_POSITIONS[view];
     return Object.entries(positions).map(([key, pos]) => {
       const id = key as MuscleId;
-      if (!pos || !muscles[id]) return null;
+      const position = pos as { x: number, y: number, align: 'left' | 'right' | 'center' } | undefined;
+
+      if (!position || !muscles[id]) return null;
       
       const level = Math.floor((muscles[id].muscleGrowth || 1) * 10 - 9);
       const status = getMuscleStatus(muscles[id].lastWorkoutTimestamp, currentTime, settings);
+      const remainingTime = calculateRemainingTime(muscles[id]);
       
       return (
         <MuscleLabel 
           key={id} 
-          x={pos.x} 
-          y={pos.y} 
+          x={position.x} 
+          y={position.y} 
           level={Math.max(1, level)} 
           statusColor={getStatusColor(status, settings.colors)}
-          align={pos.align} 
+          align={position.align} 
+          remainingTimeStr={remainingTime}
         />
       );
     });

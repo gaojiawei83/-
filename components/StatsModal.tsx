@@ -1,4 +1,3 @@
-
 import React, { useMemo, useState } from 'react';
 import { MuscleData, MuscleId, WorkoutLog, UserStats } from '../types';
 import { X, BarChart3, History, Calendar, AlertTriangle, Trophy, Flame, Star, Medal, Image as ImageIcon, Camera, Trash2 } from 'lucide-react';
@@ -30,7 +29,7 @@ const StatsModal: React.FC<StatsModalProps> = ({ muscles, history, userStats, on
   // Gallery Photos
   const allPhotos = useMemo(() => {
       const photos: { url: string, date: number, muscleName: string, muscleId: string }[] = [];
-      Object.values(muscles).forEach(m => {
+      (Object.values(muscles) as MuscleData[]).forEach(m => {
           if (m.photos) {
               m.photos.forEach(p => {
                   photos.push({

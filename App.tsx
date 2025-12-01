@@ -389,44 +389,63 @@ export default function App() {
 
   // UNDO / DELETE LOG FUNCTION
   const handleDeleteLog = (logId: string) => {
+    // 1. Find the log to delete using current state directly to ensure validity
     const logToDelete = history.find(l => l.id === logId);
-    if (!logToDelete) return;
+    if (!logToDelete) {
+        console.warn("Log not found:", logId);
+        return;
+    }
 
-    // 1. Revert History Array
+    const muscleId = logToDelete.muscleId;
+    const logDateStr = new Date(logToDelete.timestamp).toISOString().split('T')[0];
+
+    // 2. Filter history and update state
     const newHistory = history.filter(l => l.id !== logId);
     setHistory(newHistory);
 
-    // 2. Revert Muscle Data (Count and Last Timestamp)
-    const muscleId = logToDelete.muscleId;
-    const remainingLogs = newHistory.filter(l => l.muscleId === muscleId).sort((a, b) => a.timestamp - b.timestamp);
-    const newLastTimestamp = remainingLogs.length > 0 ? remainingLogs[remainingLogs.length - 1].timestamp : null;
-    const newCount = Math.max(0, muscles[muscleId].workoutCount - 1);
-    
-    setMuscles(prev => ({
-        ...prev,
-        [muscleId]: {
-            ...prev[muscleId],
-            workoutCount: newCount,
-            lastWorkoutTimestamp: newLastTimestamp,
-            muscleGrowth: getMuscleScale(newCount)
-        }
-    }));
+    // 3. Re-calculate Muscle State based on the NEW history
+    setMuscles(prevMuscles => {
+        const currentData = prevMuscles[muscleId];
+        // Calculate new last timestamp from the filtered history
+        const remainingLogs = newHistory
+            .filter(l => l.muscleId === muscleId)
+            .sort((a, b) => a.timestamp - b.timestamp);
+        
+        const newLastTimestamp = remainingLogs.length > 0 ? remainingLogs[remainingLogs.length - 1].timestamp : null;
+        
+        // Decrement count but keep >= 0
+        const newCount = Math.max(0, currentData.workoutCount - 1);
+        
+        return {
+            ...prevMuscles,
+            [muscleId]: {
+                ...currentData,
+                workoutCount: newCount,
+                lastWorkoutTimestamp: newLastTimestamp,
+                muscleGrowth: getMuscleScale(newCount)
+            }
+        };
+    });
 
-    // 3. Revert XP
-    const xpToDeduct = logToDelete.xpGained || 20; // Default to base 20 if undefined
+    // 4. Revert XP
+    const xpToDeduct = logToDelete.xpGained || 20; 
     setUserStats(prev => ({
         ...prev,
         xp: Math.max(0, prev.xp - xpToDeduct)
-        // Note: We don't revert streak/level perfectly here to avoid complexity
     }));
 
-    // 4. Revert Plan Status (if applicable)
-    // Check if there was a plan for this day that is marked complete
-    const logDateStr = new Date(logToDelete.timestamp).toISOString().split('T')[0];
+    // 5. Revert Plan Status (if applicable)
     setPlans(prev => prev.map(p => {
         if (p.muscleId === muscleId && p.dateStr === logDateStr && p.completed) {
-            // Revert plan to incomplete
-            return { ...p, completed: false, processed: false };
+            // Check if any *other* log exists for this day in the NEW history
+            const otherLogsToday = newHistory.some(l => 
+                l.muscleId === muscleId && 
+                new Date(l.timestamp).toISOString().split('T')[0] === logDateStr
+            );
+
+            if (!otherLogsToday) {
+                 return { ...p, completed: false, processed: false };
+            }
         }
         return p;
     }));
@@ -556,7 +575,12 @@ export default function App() {
   // Get Latest Log for Selected Muscle (For Deletion)
   const getLatestLogForSelected = () => {
       if (!selectedMuscleId) return null;
-      const logs = history.filter(l => l.muscleId === selectedMuscleId);
+      // Sort to ensure we get the actual latest one (Last item is the latest)
+      // Must slice first to avoid mutating state if sort is unstable in some envs (though array.sort usually mutates)
+      const logs = [...history]
+        .filter(l => l.muscleId === selectedMuscleId)
+        .sort((a, b) => a.timestamp - b.timestamp);
+      
       return logs.length > 0 ? logs[logs.length - 1] : null;
   };
 

@@ -171,7 +171,7 @@ const MuscleModal: React.FC<MuscleModalProps> = ({ muscle, latestLog, currentTim
         
         <button 
           onClick={onClose}
-          className="absolute top-4 right-4 text-slate-400 hover:text-white transition-colors z-10"
+          className="absolute top-4 right-4 text-slate-400 hover:text-white transition-colors z-10 p-2"
         >
           <X size={24} />
         </button>
@@ -220,28 +220,33 @@ const MuscleModal: React.FC<MuscleModalProps> = ({ muscle, latestLog, currentTim
                 </div>
                 
                 {/* Last Workout & Delete Button & Photo Preview Box */}
-                <div className="bg-slate-900/50 p-3 rounded-lg border border-slate-700/50 relative overflow-hidden group">
+                <div className="bg-slate-900/50 p-3 rounded-lg border border-slate-700/50 relative overflow-visible group">
                     <div className="flex justify-between items-start">
                         <span className="text-slate-500 text-[10px] font-bold uppercase tracking-wider block mb-1">
                             <CalendarClock size={10} className="inline mr-1 text-blue-400" /> 上次训练
                         </span>
                         {latestLog && (
-                            <button 
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    if(window.confirm('确定要删除这条最新的训练记录吗？经验值和状态将回滚。')) {
-                                        onDeleteLog(latestLog.id);
-                                    }
-                                }}
-                                className="text-slate-600 hover:text-red-400 transition-colors p-0.5"
-                                title="撤销上次记录"
-                            >
-                                <Trash2 size={12} />
-                            </button>
+                            <div className="absolute -top-3 -right-3 z-[100]">
+                                <button 
+                                    onClick={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        // 添加简单的双重确认或震动反馈
+                                        if(window.confirm(`确定要撤销 ${formatDate(latestLog.timestamp)} 的训练记录吗？\n\n撤销后：\n1. 肌肉状态将回滚到上一次\n2. 扣除获得的 XP`)) {
+                                            onDeleteLog(latestLog.id);
+                                        }
+                                    }}
+                                    className="bg-slate-700 text-red-400 hover:text-red-300 hover:bg-slate-600 transition-all p-3 rounded-full shadow-lg border border-slate-500 cursor-pointer flex items-center justify-center active:scale-90"
+                                    style={{ width: '40px', height: '40px' }}
+                                    title="删除这条记录"
+                                >
+                                    <Trash2 size={18} />
+                                </button>
+                            </div>
                         )}
                     </div>
                     
-                    <span className="text-xs font-sans font-bold text-slate-300 block truncate">
+                    <span className="text-xs font-sans font-bold text-slate-300 block truncate mt-1">
                         {muscle.lastWorkoutTimestamp ? formatDate(muscle.lastWorkoutTimestamp) : '无记录'}
                     </span>
 
