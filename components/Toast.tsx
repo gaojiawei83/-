@@ -1,5 +1,6 @@
-import React, { useEffect } from 'react';
-import { CheckCircle2, Info, AlertTriangle, XCircle, X } from 'lucide-react';
+
+import React, { useEffect, useState } from 'react';
+import { CheckCircle2, Info, AlertTriangle, XCircle } from 'lucide-react';
 
 export type ToastType = 'success' | 'info' | 'warning' | 'error';
 
@@ -10,14 +11,28 @@ interface ToastProps {
 }
 
 const Toast: React.FC<ToastProps> = ({ message, type = 'success', onClose }) => {
-  
-  // Set to 1000ms (1 second) as requested
-  const duration = 1000;
+  const [isVisible, setIsVisible] = useState(false);
 
   useEffect(() => {
-    const timer = setTimeout(onClose, duration);
-    return () => clearTimeout(timer);
-  }, [onClose, duration]);
+    // 1. Reveal immediately (next frame to allow transition)
+    const enterTimer = requestAnimationFrame(() => setIsVisible(true));
+
+    // 2. Start fade out after 1.5 seconds (Read time)
+    const leaveTimer = setTimeout(() => {
+      setIsVisible(false);
+    }, 1500);
+
+    // 3. Unmount after animation completes (1 second fade duration)
+    const closeTimer = setTimeout(() => {
+      onClose();
+    }, 2500);
+
+    return () => {
+      cancelAnimationFrame(enterTimer);
+      clearTimeout(leaveTimer);
+      clearTimeout(closeTimer);
+    };
+  }, [onClose]);
 
   const styles = {
     success: {
@@ -49,25 +64,32 @@ const Toast: React.FC<ToastProps> = ({ message, type = 'success', onClose }) => 
   const currentStyle = styles[type];
 
   return (
-    <div className="fixed top-24 left-1/2 -translate-x-1/2 z-50 flex flex-col items-center animate-fade-in-down w-full max-w-xs px-4 pointer-events-none">
+    <div 
+        className={`fixed top-24 left-1/2 -translate-x-1/2 z-[100] flex flex-col items-center w-full max-w-xs px-4 pointer-events-none transition-opacity duration-1000 ease-in-out ${isVisible ? 'opacity-100' : 'opacity-0'}`}
+    >
       <div 
         className={`
           pointer-events-auto
-          relative flex items-center gap-3 px-4 py-2
-          rounded-full
-          backdrop-blur-md shadow-xl
+          relative flex items-center gap-3 px-4 py-3
+          rounded-2xl
+          backdrop-blur-md shadow-2xl
           border ${currentStyle.border}
           ${currentStyle.bg}
-          transition-all transform cursor-pointer
+          cursor-pointer
+          transform transition-transform active:scale-95
         `}
-        onClick={onClose}
+        onClick={() => {
+            setIsVisible(false);
+            // Close faster on manual click
+            setTimeout(onClose, 300);
+        }}
       >
         <div className="shrink-0">
           {currentStyle.icon}
         </div>
         
         <div className="flex-1">
-          <p className={`text-sm font-medium ${currentStyle.text}`}>
+          <p className={`text-sm font-bold ${currentStyle.text}`}>
             {message}
           </p>
         </div>

@@ -68,7 +68,8 @@ export default function App() {
   const [showPlanReport, setShowPlanReport] = useState(false);
   
   // Notifications
-  const [toast, setToast] = useState<{message: string, type: ToastType} | null>(null);
+  // FIX: Added 'id' to toast state to provide a stable key and prevent re-rendering loops
+  const [toast, setToast] = useState<{id: number, message: string, type: ToastType} | null>(null);
   const [achievementToast, setAchievementToast] = useState<{title: string, description: string, type: 'levelup' | 'achievement', icon?: React.ReactNode} | null>(null);
   
   // Animation
@@ -83,7 +84,8 @@ export default function App() {
 
   // Helper to show toast
   const showToast = (message: string, type: ToastType = 'success') => {
-    setToast({ message, type });
+    // Generate ID here so it stays constant during re-renders
+    setToast({ id: Date.now(), message, type });
   };
 
   // Load from LocalStorage
@@ -588,9 +590,10 @@ export default function App() {
     <div className="h-screen w-full font-sans selection:bg-blue-500/30 overflow-hidden flex flex-col bg-[#0f172a] text-slate-200">
       
       {/* Notifications */}
+      {/* FIX: Use toast.id as key to prevent re-mounting on every second tick */}
       {toast && (
         <Toast 
-            key={Date.now()} 
+            key={toast.id} 
             message={toast.message} 
             type={toast.type}
             onClose={() => setToast(null)} 
