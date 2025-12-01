@@ -68,7 +68,6 @@ export default function App() {
   const [showPlanReport, setShowPlanReport] = useState(false);
   
   // Notifications
-  // FIX: Added 'id' to toast state to provide a stable key and prevent re-rendering loops
   const [toast, setToast] = useState<{id: number, message: string, type: ToastType} | null>(null);
   const [achievementToast, setAchievementToast] = useState<{title: string, description: string, type: 'levelup' | 'achievement', icon?: React.ReactNode} | null>(null);
   
@@ -84,7 +83,6 @@ export default function App() {
 
   // Helper to show toast
   const showToast = (message: string, type: ToastType = 'success') => {
-    // Generate ID here so it stays constant during re-renders
     setToast({ id: Date.now(), message, type });
   };
 
@@ -145,7 +143,6 @@ export default function App() {
       }
 
       // 2. CHECK FOR MISSED PLANS (Penalty System)
-      // Check if any plan is from the past (date < today), not completed, and not yet processed
       const missedPlans = plans.filter(p => p.dateStr < todayYMD && !p.completed && !p.processed);
       if (missedPlans.length > 0) {
         let totalPenalty = 0;
@@ -197,16 +194,13 @@ export default function App() {
     let newStats = { ...userStats };
     const now = specificDateTimestamp || newLog.timestamp;
 
-    // 1. Streak Logic (Only update streak if it's a recent workout, i.e., not a very old retroactive one)
-    // If it's a retroactive log for "yesterday" or "today", it might save a streak or extend it.
+    // 1. Streak Logic
     const lastActiveDate = new Date(newStats.lastActiveTimestamp).toDateString();
     const currentLogDate = new Date(now).toDateString();
     
-    // Only update streak logic if the log is effectively "new" or "latest"
     if (now >= newStats.lastActiveTimestamp) {
         if (lastActiveDate !== currentLogDate) {
             const msPerDay = 24 * 60 * 60 * 1000;
-            // Check if it is consecutive to the *stored* last active timestamp
             const diffMs = now - newStats.lastActiveTimestamp;
             const isConsecutive = diffMs < (msPerDay * 2);
             
@@ -216,7 +210,6 @@ export default function App() {
                     newStats.bestStreak = newStats.currentStreak;
                 }
             } else {
-                // Only reset if we are logging a "current" workout and the streak was broken
                 if (!specificDateTimestamp) {
                     newStats.currentStreak = 1; 
                     showToast("新的一天，重新开始计数。", 'info');
@@ -231,7 +224,6 @@ export default function App() {
     // 2. XP Calculation
     let xpGain = calculateXpGain(!!newLog.isForced, newStats.currentStreak);
     
-    // Check for PLAN COMPLETION BONUS on the Specific Date
     const logYMD = new Date(now).toISOString().split('T')[0];
     const matchingPlanIndex = plans.findIndex(p => 
         p.dateStr === logYMD && 
@@ -240,15 +232,14 @@ export default function App() {
     );
 
     if (matchingPlanIndex !== -1) {
-        // Mark plan as completed
         const updatedPlans = [...plans];
         updatedPlans[matchingPlanIndex] = { 
             ...updatedPlans[matchingPlanIndex], 
             completed: true, 
-            processed: true // No penalty for this one
+            processed: true 
         };
         setPlans(updatedPlans);
-        xpGain += XP_PLAN_COMPLETE; // Bonus
+        xpGain += XP_PLAN_COMPLETE; 
     }
 
     newStats.xp += xpGain;
@@ -271,8 +262,6 @@ export default function App() {
     }
 
     setUserStats(newStats);
-    
-    // Return XP gain for toast display and log saving
     return xpGain;
   };
 
@@ -316,7 +305,7 @@ export default function App() {
         [muscleId]: {
             ...muscles[muscleId],
             workoutCount: newCount,
-            lastWorkoutTimestamp: now, // Always update to now
+            lastWorkoutTimestamp: now, 
             muscleGrowth: newGrowth
         }
     };
@@ -331,14 +320,11 @@ export default function App() {
     
     const earnedXp = processGamification(tempLog, updatedMuscles);
 
-    // Save actual log with XP
     const newLog = { ...tempLog, xpGained: earnedXp };
     setHistory(prev => [...prev, newLog]);
 
     setAnimatingMuscleId(muscleId);
     setTimeout(() => setAnimatingMuscleId(null), 700);
-    // Don't close modal immediately so user can see feedback or do other things
-    // setSelectedMuscleId(null); 
     
     if (isForced) {
         showToast(`⚠️ 强制训练已记录 (+${earnedXp} XP)`, 'warning');
@@ -347,10 +333,8 @@ export default function App() {
     }
   };
 
-  // RETROACTIVE WORKOUT (补打卡)
   const handleRetroactiveWorkout = (id: string, dateStr: string) => {
       const muscleId = id as MuscleId;
-      // Set time to noon of that day to be safe, or current time on that day
       const targetDate = new Date(dateStr);
       targetDate.setHours(12, 0, 0, 0);
       const timestamp = targetDate.getTime();
@@ -358,7 +342,6 @@ export default function App() {
       const newCount = muscles[muscleId].workoutCount + 1;
       const newGrowth = getMuscleScale(newCount);
       
-      // Only update lastWorkoutTimestamp if this retroactive date is newer than what we have
       const currentLast = muscles[muscleId].lastWorkoutTimestamp;
       const newLast = (currentLast === null || timestamp > currentLast) ? timestamp : currentLast;
 
@@ -383,7 +366,6 @@ export default function App() {
       const earnedXp = processGamification(tempLog, updatedMuscles, timestamp);
       
       const newLog = { ...tempLog, xpGained: earnedXp };
-      // Sort history to keep chronological order usually, but simpler to just append and sort when viewing
       setHistory(prev => [...prev, newLog].sort((a,b) => a.timestamp - b.timestamp));
 
       showToast(`📅 补录成功! (+${earnedXp} XP)`, 'success');
@@ -395,33 +377,35 @@ export default function App() {
     const logToDelete = history.find(l => l.id === logId);
     if (!logToDelete) {
         console.warn("Log not found:", logId);
+        showToast("无法找到该记录", "error");
         return;
     }
 
     const muscleId = logToDelete.muscleId;
     const logDateStr = new Date(logToDelete.timestamp).toISOString().split('T')[0];
 
-    // 2. Filter history and update state
+    // 2. Filter history 
     const newHistory = history.filter(l => l.id !== logId);
     setHistory(newHistory);
 
     // 3. Re-calculate Muscle State based on the NEW history
+    // IMPORTANT: We use functional update and recalculate purely based on the new history array
     setMuscles(prevMuscles => {
-        const currentData = prevMuscles[muscleId];
-        // Calculate new last timestamp from the filtered history
+        // Filter logs for this specific muscle from the NEW history
         const remainingLogs = newHistory
             .filter(l => l.muscleId === muscleId)
             .sort((a, b) => a.timestamp - b.timestamp);
         
-        const newLastTimestamp = remainingLogs.length > 0 ? remainingLogs[remainingLogs.length - 1].timestamp : null;
+        // Count is simply length of logs
+        const newCount = remainingLogs.length;
         
-        // Decrement count but keep >= 0
-        const newCount = Math.max(0, currentData.workoutCount - 1);
+        // Last timestamp is the last item in sorted logs, or null if empty
+        const newLastTimestamp = remainingLogs.length > 0 ? remainingLogs[remainingLogs.length - 1].timestamp : null;
         
         return {
             ...prevMuscles,
             [muscleId]: {
-                ...currentData,
+                ...prevMuscles[muscleId],
                 workoutCount: newCount,
                 lastWorkoutTimestamp: newLastTimestamp,
                 muscleGrowth: getMuscleScale(newCount)
@@ -453,6 +437,7 @@ export default function App() {
     }));
 
     showToast(`🗑️ 记录已删除 (-${xpToDeduct} XP)`, 'info');
+    // Ensure modal reflects change or closes if needed, but we keep it open for now
   };
 
   const handleSavePhoto = (muscleId: MuscleId, photoData: string) => {
@@ -473,7 +458,6 @@ export default function App() {
       setMuscles(updatedMuscles);
       showToast('照片已保存到相册', 'success');
       
-      // Trigger achievement check again for photo
       const newAchievements = checkAchievements(userStats, updatedMuscles, history, history[history.length-1]);
       if (newAchievements.length > 0) {
         const newStats = { ...userStats };
@@ -494,10 +478,6 @@ export default function App() {
     const updatedMuscles = { ...muscles };
     const newLogs: WorkoutLog[] = [];
     
-    // Note: Simple loop here, doesn't check plans individually for the bonus logic in `processGamification` helper
-    // To properly support full workout plan bonuses, we'd need to refactor logic. 
-    // For now, we apply basic logic for full workout.
-    
     muscleIds.forEach(id => {
       const newCount = updatedMuscles[id].workoutCount + 1;
       const newGrowth = getMuscleScale(newCount);
@@ -513,7 +493,7 @@ export default function App() {
         muscleId: id,
         timestamp: now,
         isForced: false,
-        xpGained: 20 // Approx for full workout split
+        xpGained: 20 
       };
       newLogs.push(log);
     });
@@ -521,8 +501,6 @@ export default function App() {
     setMuscles(updatedMuscles);
     setHistory(prev => [...prev, ...newLogs]);
 
-    // We'll just take the last log to trigger gamification, but manual loop to check plans for all
-    // Check for plans for ALL muscles
     const todayYMD = new Date(now).toISOString().split('T')[0];
     let totalPlanBonus = 0;
     const updatedPlans = [...plans];
@@ -558,7 +536,6 @@ export default function App() {
     }));
     setPlans(prev => [...prev, ...newPlans]);
     
-    // Reward XP for Planning
     const xpReward = newPlans.length * XP_PLAN_CREATE;
     setUserStats(prev => ({ ...prev, xp: prev.xp + xpReward }));
 
@@ -577,8 +554,8 @@ export default function App() {
   // Get Latest Log for Selected Muscle (For Deletion)
   const getLatestLogForSelected = () => {
       if (!selectedMuscleId) return null;
-      // Sort to ensure we get the actual latest one (Last item is the latest)
-      // Must slice first to avoid mutating state if sort is unstable in some envs (though array.sort usually mutates)
+      // Sort descending by timestamp to guarantee [0] is the latest
+      // Fallback to simple ascending and taking last one is safer visually
       const logs = [...history]
         .filter(l => l.muscleId === selectedMuscleId)
         .sort((a, b) => a.timestamp - b.timestamp);
@@ -590,7 +567,6 @@ export default function App() {
     <div className="h-screen w-full font-sans selection:bg-blue-500/30 overflow-hidden flex flex-col bg-[#0f172a] text-slate-200">
       
       {/* Notifications */}
-      {/* FIX: Use toast.id as key to prevent re-mounting on every second tick */}
       {toast && (
         <Toast 
             key={toast.id} 

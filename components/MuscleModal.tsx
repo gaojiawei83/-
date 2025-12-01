@@ -221,10 +221,12 @@ const MuscleModal: React.FC<MuscleModalProps> = ({ muscle, latestLog, currentTim
                 
                 {/* Last Workout & Delete Button & Photo Preview Box */}
                 <div className="bg-slate-900/50 p-3 rounded-lg border border-slate-700/50 relative overflow-visible group">
-                    <div className="flex justify-between items-start mb-1">
+                    <div className="flex justify-between items-start mb-1 relative z-10">
                         <span className="text-slate-500 text-[10px] font-bold uppercase tracking-wider block">
                             <CalendarClock size={10} className="inline mr-1 text-blue-400" /> 上次训练
                         </span>
+                        
+                        {/* Improved Delete Button */}
                         {latestLog && (
                             <button 
                                 onClick={(e) => {
@@ -234,7 +236,7 @@ const MuscleModal: React.FC<MuscleModalProps> = ({ muscle, latestLog, currentTim
                                         onDeleteLog(latestLog.id);
                                     }
                                 }}
-                                className="text-slate-500 hover:text-red-400 hover:bg-slate-800 rounded-lg p-2 transition-colors -mr-2 -mt-2"
+                                className="absolute top-2 right-2 p-2 bg-slate-800 border border-slate-600 shadow-sm text-slate-400 hover:text-red-400 hover:border-red-500/50 rounded-lg transition-all z-30 transform hover:scale-110 active:scale-95"
                                 title="删除这条记录"
                             >
                                 <Trash2 size={16} />
@@ -242,7 +244,7 @@ const MuscleModal: React.FC<MuscleModalProps> = ({ muscle, latestLog, currentTim
                         )}
                     </div>
                     
-                    <span className="text-xs font-sans font-bold text-slate-300 block truncate">
+                    <span className="text-xs font-sans font-bold text-slate-300 block truncate mt-1">
                         {muscle.lastWorkoutTimestamp ? formatDate(muscle.lastWorkoutTimestamp) : '无记录'}
                     </span>
 
