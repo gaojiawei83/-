@@ -14,47 +14,47 @@ const Toast: React.FC<ToastProps> = ({ message, type = 'success', onClose }) => 
   const [isVisible, setIsVisible] = useState(false);
 
   useEffect(() => {
-    // 1. Reveal immediately (next frame to allow transition)
-    const enterTimer = requestAnimationFrame(() => setIsVisible(true));
-
-    // 2. Start fade out after 1.5 seconds (Read time)
-    const leaveTimer = setTimeout(() => {
+    // 1. Fade In
+    const showTimer = requestAnimationFrame(() => setIsVisible(true));
+    
+    // 2. Start Fade Out after 1.5s
+    const hideTimer = setTimeout(() => {
       setIsVisible(false);
     }, 1500);
 
-    // 3. Unmount after animation completes (1 second fade duration)
+    // 3. Unmount after 1.5s (read) + 1s (fade out)
     const closeTimer = setTimeout(() => {
       onClose();
     }, 2500);
 
     return () => {
-      cancelAnimationFrame(enterTimer);
-      clearTimeout(leaveTimer);
+      cancelAnimationFrame(showTimer);
+      clearTimeout(hideTimer);
       clearTimeout(closeTimer);
     };
   }, [onClose]);
 
   const styles = {
     success: {
-      bg: "bg-emerald-800/90",
+      bg: "bg-emerald-800/95",
       border: "border-emerald-500",
       icon: <CheckCircle2 className="text-emerald-300" size={20} />,
       text: "text-emerald-50"
     },
     info: {
-      bg: "bg-blue-800/90",
+      bg: "bg-blue-800/95",
       border: "border-blue-500",
       icon: <Info className="text-blue-300" size={20} />,
       text: "text-blue-50"
     },
     warning: {
-      bg: "bg-amber-800/90",
+      bg: "bg-amber-800/95",
       border: "border-amber-500",
       icon: <AlertTriangle className="text-amber-300" size={20} />,
       text: "text-amber-50"
     },
     error: {
-      bg: "bg-red-800/90",
+      bg: "bg-red-800/95",
       border: "border-red-500",
       icon: <XCircle className="text-red-300" size={20} />,
       text: "text-red-50"
@@ -65,7 +65,7 @@ const Toast: React.FC<ToastProps> = ({ message, type = 'success', onClose }) => 
 
   return (
     <div 
-        className={`fixed top-24 left-1/2 -translate-x-1/2 z-[100] flex flex-col items-center w-full max-w-xs px-4 pointer-events-none transition-opacity duration-1000 ease-in-out ${isVisible ? 'opacity-100' : 'opacity-0'}`}
+        className={`fixed top-24 left-1/2 -translate-x-1/2 z-[100] flex flex-col items-center w-full max-w-xs px-4 pointer-events-none transition-opacity duration-1000 ease-out ${isVisible ? 'opacity-100' : 'opacity-0'}`}
     >
       <div 
         className={`
@@ -80,8 +80,7 @@ const Toast: React.FC<ToastProps> = ({ message, type = 'success', onClose }) => 
         `}
         onClick={() => {
             setIsVisible(false);
-            // Close faster on manual click
-            setTimeout(onClose, 300);
+            setTimeout(onClose, 200);
         }}
       >
         <div className="shrink-0">

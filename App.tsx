@@ -373,10 +373,9 @@ export default function App() {
 
   // UNDO / DELETE LOG FUNCTION
   const handleDeleteLog = (logId: string) => {
-    // 1. Find the log to delete using current state directly to ensure validity
+    // 1. Find log to delete
     const logToDelete = history.find(l => l.id === logId);
     if (!logToDelete) {
-        console.warn("Log not found:", logId);
         showToast("无法找到该记录", "error");
         return;
     }
@@ -384,60 +383,53 @@ export default function App() {
     const muscleId = logToDelete.muscleId;
     const logDateStr = new Date(logToDelete.timestamp).toISOString().split('T')[0];
 
-    // 2. Filter history 
+    // 2. Create NEW History
     const newHistory = history.filter(l => l.id !== logId);
     setHistory(newHistory);
 
     // 3. Re-calculate Muscle State based on the NEW history
-    // IMPORTANT: We use functional update and recalculate purely based on the new history array
-    setMuscles(prevMuscles => {
-        // Filter logs for this specific muscle from the NEW history
-        const remainingLogs = newHistory
-            .filter(l => l.muscleId === muscleId)
-            .sort((a, b) => a.timestamp - b.timestamp);
-        
-        // Count is simply length of logs
-        const newCount = remainingLogs.length;
-        
-        // Last timestamp is the last item in sorted logs, or null if empty
-        const newLastTimestamp = remainingLogs.length > 0 ? remainingLogs[remainingLogs.length - 1].timestamp : null;
-        
-        return {
-            ...prevMuscles,
-            [muscleId]: {
-                ...prevMuscles[muscleId],
-                workoutCount: newCount,
-                lastWorkoutTimestamp: newLastTimestamp,
-                muscleGrowth: getMuscleScale(newCount)
-            }
-        };
-    });
+    // Get logs for this specific muscle from the new history
+    const muscleLogs = newHistory
+        .filter(l => l.muscleId === muscleId)
+        .sort((a, b) => a.timestamp - b.timestamp);
+    
+    const newCount = muscleLogs.length;
+    const newLastTimestamp = newCount > 0 ? muscleLogs[newCount - 1].timestamp : null;
+    const newGrowth = getMuscleScale(newCount);
 
-    // 4. Revert XP
+    setMuscles(prev => ({
+        ...prev,
+        [muscleId]: {
+            ...prev[muscleId],
+            workoutCount: newCount,
+            lastWorkoutTimestamp: newLastTimestamp,
+            muscleGrowth: newGrowth
+        }
+    }));
+
+    // 4. Deduct XP
     const xpToDeduct = logToDelete.xpGained || 20; 
     setUserStats(prev => ({
         ...prev,
         xp: Math.max(0, prev.xp - xpToDeduct)
     }));
 
-    // 5. Revert Plan Status (if applicable)
-    setPlans(prev => prev.map(p => {
-        if (p.muscleId === muscleId && p.dateStr === logDateStr && p.completed) {
-            // Check if any *other* log exists for this day in the NEW history
-            const otherLogsToday = newHistory.some(l => 
-                l.muscleId === muscleId && 
-                new Date(l.timestamp).toISOString().split('T')[0] === logDateStr
-            );
+    // 5. Check if we need to revert a completed plan
+    // If we delete the ONLY log for a specific date that had a completed plan, we revert the plan.
+    const hasOtherLogThatDay = muscleLogs.some(l => 
+        new Date(l.timestamp).toISOString().split('T')[0] === logDateStr
+    );
 
-            if (!otherLogsToday) {
+    if (!hasOtherLogThatDay) {
+        setPlans(prev => prev.map(p => {
+            if (p.muscleId === muscleId && p.dateStr === logDateStr && p.completed) {
                  return { ...p, completed: false, processed: false };
             }
-        }
-        return p;
-    }));
+            return p;
+        }));
+    }
 
     showToast(`🗑️ 记录已删除 (-${xpToDeduct} XP)`, 'info');
-    // Ensure modal reflects change or closes if needed, but we keep it open for now
   };
 
   const handleSavePhoto = (muscleId: MuscleId, photoData: string) => {
@@ -554,13 +546,12 @@ export default function App() {
   // Get Latest Log for Selected Muscle (For Deletion)
   const getLatestLogForSelected = () => {
       if (!selectedMuscleId) return null;
-      // Sort descending by timestamp to guarantee [0] is the latest
-      // Fallback to simple ascending and taking last one is safer visually
-      const logs = [...history]
-        .filter(l => l.muscleId === selectedMuscleId)
-        .sort((a, b) => a.timestamp - b.timestamp);
-      
-      return logs.length > 0 ? logs[logs.length - 1] : null;
+      // Filter logs for this muscle
+      const muscleLogs = history.filter(l => l.muscleId === selectedMuscleId);
+      // Sort asc by timestamp (oldest to newest)
+      muscleLogs.sort((a, b) => a.timestamp - b.timestamp);
+      // Return last one
+      return muscleLogs.length > 0 ? muscleLogs[muscleLogs.length - 1] : null;
   };
 
   return (
